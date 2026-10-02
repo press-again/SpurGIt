@@ -471,6 +471,8 @@ pub(super) struct TagCreateOp {
     pub name: String,
     pub hash: String,
     pub message: String,
+    /// Remote to push the new tag to right after creating it.
+    pub push_remote: Option<String>,
 }
 
 /// A queued tag push to one remote (tag row menu).
@@ -1394,7 +1396,13 @@ impl SpurShell {
                 t().log_reset_to(op.branch.as_deref().unwrap_or("HEAD"), &op.short),
                 "reset",
             ),
-            ChangeOp::TagCreate(op) => (t().log_tag_created(&op.name), "create tag"),
+            ChangeOp::TagCreate(op) => (
+                match &op.push_remote {
+                    Some(remote) => t().log_tag_created_pushed(&op.name, remote),
+                    None => t().log_tag_created(&op.name),
+                },
+                "create tag",
+            ),
             ChangeOp::TagPush(op) => (t().log_tag_pushed(&op.name, &op.remote), "push tag"),
             ChangeOp::TagDelete(op) => {
                 let mut destinations = Vec::new();
@@ -1657,11 +1665,12 @@ impl SpurShell {
                             op.branch.as_deref(),
                             &op.head,
                         ),
-                        ChangeOp::TagCreate(op) => crate::git::create_tag(
+                        ChangeOp::TagCreate(op) => crate::git::create_tag_and_push(
                             &worktree,
                             &op.name,
                             &op.hash,
                             &op.message,
+                            op.push_remote.as_deref(),
                         ),
                         ChangeOp::TagPush(op) => {
                             crate::git::push_tag(&worktree, &op.remote, &op.name)

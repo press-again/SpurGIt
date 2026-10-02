@@ -1,6 +1,5 @@
-//! Tag dialogs: create, push to a remote, and delete
-//! locally and/or on remotes. Push-after-create stays out on purpose; the
-//! create dialog itself is local-only.
+//! Tag dialogs: create (optionally pushing the new tag), push to a remote, and
+//! delete locally and/or on remotes.
 
 use super::*;
 
@@ -22,6 +21,9 @@ pub(super) struct TagRequest {
     pub repo_id: String,
     pub hash: String,
     pub short: String,
+    /// Push the new tag to `remote` right after creating it.
+    pub push: bool,
+    pub remote: String,
 }
 
 /// A tag-push request while the dialog is open: the remote is picked in the
@@ -122,10 +124,13 @@ impl SpurShell {
         self.tag_message_input.update(cx, |state, cx| {
             state.set_value("", window, cx)
         });
+        let remote = self.default_tag_remote();
         self.tag_request = Some(TagRequest {
             repo_id,
             hash,
             short,
+            push: false,
+            remote,
         });
         self.open_modal(cx);
         cx.notify();
@@ -152,6 +157,7 @@ impl SpurShell {
             name,
             hash: request.hash,
             message,
+            push_remote: (request.push && !request.remote.is_empty()).then_some(request.remote),
         }));
         self.pump_change_ops(cx);
         self.close_modal(cx);
@@ -183,6 +189,25 @@ impl SpurShell {
         .detach();
     }
 
+    /// Remote names for the tag dialogs' pickers, sorted.
+    fn tag_remote_names(&self) -> Vec<String> {
+        let mut names = self.remote_names();
+        names.sort();
+        names.dedup();
+        names
+    }
+
+    /// The remote a tag dialog starts on: `origin`, else the first one.
+    fn default_tag_remote(&self) -> String {
+        let names = self.remote_names();
+        names
+            .iter()
+            .find(|name| name.as_str() == "origin")
+            .or_else(|| names.first())
+            .cloned()
+            .unwrap_or_default()
+    }
+
     /// Open the push dialog for one tag (remote picker).
     pub(super) fn request_tag_push(&mut self, name: String, cx: &mut Context<Self>) {
         let remotes = self
@@ -197,12 +222,7 @@ impl SpurShell {
             return;
         };
         let repo_id = repo.path.to_string_lossy().into_owned();
-        let remote = remotes
-            .iter()
-            .find(|(remote, _)| remote == "origin")
-            .or_else(|| remotes.first())
-            .map(|(remote, _)| remote.clone())
-            .unwrap_or_default();
+        let remote = self.default_tag_remote();
         self.tag_push_request = Some(TagPushRequest {
             repo_id,
             name,
@@ -281,62 +301,17 @@ impl SpurShell {
         cx: &mut Context<Self>,
     ) -> gpui_kit::AnyElement {
         let this = cx.entity().downgrade();
-        let mut names: Vec<String> = self
-            .active_details()
-            .map(|details| {
-                details
-                    .remotes
-                    .iter()
-                    .map(|(name, _)| name.clone())
-                    .collect()
-            })
-            .unwrap_or_default();
-        names.sort();
-        names.dedup();
-        let picked = request.remote.clone();
-        let menu_entity = this.clone();
-        let remote_menu = DropdownButton::new("tag-push-remote").button(
-            Button::new("tag-push-remote-btn")
-                .label(truncate_label(&request.remote, 32))
-                .ghost()
-                .xsmall(),
-        )
-        .dropdown_menu(move |menu, _, _| {
-            let mut menu = menu;
-            for name in &names {
-                let entity = menu_entity.clone();
-                let selected = name == &picked;
-                let picked = name.clone();
-                let label = name.clone();
-                menu = menu.item(
-                    PopupMenuItem::element(move |_window, _cx| {
-                        div()
-                            .flex_1()
-                            .min_w_0()
-                            .self_stretch()
-                            .flex()
-                            .items_center()
-                            .cursor_pointer()
-                            .overflow_hidden()
-                            .whitespace_nowrap()
-                            .child(truncate_label(&label, 42))
-                    })
-                    .checked(selected)
-                    .on_click(move |_, _, cx| {
-                        let picked = picked.clone();
-                        entity
-                            .update(cx, |this, cx| {
-                                if let Some(request) = this.tag_push_request.as_mut() {
-                                    request.remote = picked.clone();
-                                }
-                                cx.notify();
-                            })
-                            .ok();
-                    }),
-                );
-            }
-            menu
-        });
+        let remote_menu = remote_picker(
+            "tag-push-remote",
+            &request.remote,
+            self.tag_remote_names(),
+            this,
+            |shell, remote| {
+                if let Some(request) = shell.tag_push_request.as_mut() {
+                    request.remote = remote;
+                }
+            },
+        );
         modal_card(
             cx,
             "tag-push",
@@ -448,6 +423,58 @@ impl SpurShell {
         )
     }
 
+}
+
+/// Remote dropdown shared by the tag dialogs; `pick` stores the choice.
+fn remote_picker(
+    id: &'static str,
+    current: &str,
+    names: Vec<String>,
+    this: WeakEntity<SpurShell>,
+    pick: fn(&mut SpurShell, String),
+) -> DropdownButton {
+    let current_name = current.to_string();
+    DropdownButton::new(id)
+        .button(
+            Button::new(SharedString::from(format!("{id}-btn")))
+                .label(truncate_label(current, 32))
+                .ghost()
+                .xsmall(),
+        )
+        .dropdown_menu(move |menu, _, _| {
+            let mut menu = menu;
+            for name in &names {
+                let entity = this.clone();
+                let selected = name == &current_name;
+                let picked = name.clone();
+                let label = name.clone();
+                menu = menu.item(
+                    PopupMenuItem::element(move |_window, _cx| {
+                        div()
+                            .flex_1()
+                            .min_w_0()
+                            .self_stretch()
+                            .flex()
+                            .items_center()
+                            .cursor_pointer()
+                            .overflow_hidden()
+                            .whitespace_nowrap()
+                            .child(truncate_label(&label, 42))
+                    })
+                    .checked(selected)
+                    .on_click(move |_, _, cx| {
+                        let picked = picked.clone();
+                        entity
+                            .update(cx, |this, cx| {
+                                pick(this, picked);
+                                cx.notify();
+                            })
+                            .ok();
+                    }),
+                );
+            }
+            menu
+        })
 }
 
 /// Shared scrim + card for the tag push/delete dialogs: title row, optional
@@ -572,6 +599,44 @@ impl SpurShell {
         cx: &mut Context<Self>,
     ) -> gpui_kit::AnyElement {
         let can_create = !self.tag_name_input.read(cx).value().trim().is_empty();
+        let remotes = self.tag_remote_names();
+        let this = cx.entity().downgrade();
+        let push_row = (!remotes.is_empty()).then(|| {
+            let entity = this.clone();
+            div()
+                .flex()
+                .items_center()
+                .gap(px(12.))
+                .child(
+                    Checkbox::new("tag-create-push")
+                        .checked(request.push)
+                        .label(t().tag_push_after)
+                        .on_change(move |checked, _, cx| {
+                            let checked = *checked;
+                            entity
+                                .update(cx, |this, cx| {
+                                    if let Some(request) = this.tag_request.as_mut() {
+                                        request.push = checked;
+                                    }
+                                    cx.notify();
+                                })
+                                .ok();
+                        }),
+                )
+                .children(request.push.then(|| {
+                    select_shell(remote_picker(
+                        "tag-create-remote",
+                        &request.remote,
+                        remotes,
+                        this,
+                        |shell, remote| {
+                            if let Some(request) = shell.tag_request.as_mut() {
+                                request.remote = remote;
+                            }
+                        },
+                    ))
+                }))
+        });
         div()
             .absolute()
             .inset_0()
@@ -662,6 +727,7 @@ impl SpurShell {
                                     .w_full(),
                             ),
                     )
+                    .children(push_row)
                     .child(
                         div()
                             .flex()

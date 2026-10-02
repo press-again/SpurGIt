@@ -228,6 +228,7 @@ pub struct Strings {
     pub tag_name_placeholder: &'static str,
     pub tag_message: &'static str,
     pub tag_create: &'static str,
+    pub tag_push_after: &'static str,
     // Stash dialog
     pub stash_title: &'static str,
     pub stash_drop_title: &'static str,
@@ -858,6 +859,10 @@ impl Strings {
     }
 
     // ---- Tag row menu ----
+
+    pub fn log_tag_created_pushed(&self, name: &str, remote: &str) -> String {
+        format!("created tag {name} and pushed it to {remote}")
+    }
 
     pub fn log_tag_pushed(&self, name: &str, remote: &str) -> String {
         format!("pushed tag {name} to {remote}")
@@ -1513,6 +1518,7 @@ pub static ENGLISH: Strings = Strings {
     tag_name_placeholder: "v1.0.0",
     tag_message: "Message (annotated when not empty)",
     tag_create: "Create",
+    tag_push_after: "Push to remote",
     stash_title: "Stash Changes",
     stash_drop_title: "Drop this stash?",
     context_apply: "Apply",

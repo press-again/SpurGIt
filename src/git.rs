@@ -2396,6 +2396,23 @@ pub fn push_tag(worktree: &str, remote: &str, name: &str) -> Result<(), String> 
     Ok(())
 }
 
+/// [`create_tag`], then push it to `remote` when one is given. A failed
+/// creation never pushes: the name may already belong to a different tag.
+pub fn create_tag_and_push(
+    worktree: &str,
+    name: &str,
+    hash: &str,
+    message: &str,
+    remote: Option<&str>,
+) -> Result<(), String> {
+    create_tag(worktree, name, hash, message)?;
+    if let Some(remote) = remote {
+        push_tag(worktree, remote, name.trim())
+            .map_err(|err| format!("the tag was created, but pushing it failed: {err}"))?;
+    }
+    Ok(())
+}
+
 /// Delete a tag locally and/or on the given remotes (`:refs/tags/<name>`
 /// refspec). Local goes first so a network failure still leaves a truthful
 /// error while the local delete stands; the result names what happened.
@@ -4897,6 +4914,55 @@ mod wsl_tests {
         assert!(rename_remote(&repo, "origin", "-x").is_err());
         assert!(remove_remote(&repo, "").is_err());
         assert!(remove_remote(&repo, "missing").is_err());
+    }
+
+    #[test]
+    #[ignore = "requires a WSL distro"]
+    fn creating_a_tag_can_push_it_and_never_pushes_a_taken_name() {
+        wsl::watchdog(120);
+        let dir = wsl::temp_dir("tag-create-push");
+        let home = format!("{dir}/home");
+        wsl::must(&["mkdir", "-p", &home]);
+        wsl::write_file(
+            &format!("{home}/.gitconfig"),
+            b"[user]
+	name = Spur Test
+	email = spur@test.invalid
+",
+        );
+        let remote = format!("{dir}/remote.git");
+        wsl::must(&["git", "init", "-q", "--bare", &remote]);
+        let repo = format!("{dir}/repo");
+        init_repo(&home, &repo);
+        let first = rev(&repo, "HEAD");
+        wsl::must_env(&home, &["git", "-C", &repo, "remote", "add", "origin", &remote]);
+        let ls_remote = |reference: &str| {
+            String::from_utf8_lossy(&wsl::must(&[
+                "git", "-C", &repo, "ls-remote", &remote, reference,
+            ]))
+            .into_owned()
+        };
+
+        create_tag_and_push(&repo, "v-local", &first, "", None).expect("local only");
+        assert!(ls_remote("refs/tags/v-local").is_empty(), "no remote given: nothing pushed");
+
+        create_tag_and_push(&repo, "v-both", &first, "release", Some("origin")).expect("create and push");
+        assert!(ls_remote("refs/tags/v-both").contains("refs/tags/v-both"));
+
+        // A later commit tries the taken name: creation fails, and the old
+        // tag on the remote is neither replaced nor re-pushed.
+        wsl::write_file(&format!("{repo}/later.txt"), b"later
+");
+        wsl::must_env(&home, &["git", "-C", &repo, "add", "."]);
+        wsl::must_env(&home, &["git", "-C", &repo, "commit", "-q", "-m", "later"]);
+        let later = rev(&repo, "HEAD");
+        assert!(create_tag_and_push(&repo, "v-local", &later, "", Some("origin")).is_err());
+        assert!(ls_remote("refs/tags/v-local").is_empty(), "the existing tag must not be pushed");
+
+        // A push failure after a successful creation says so and keeps the tag.
+        let err = create_tag_and_push(&repo, "v-kept", &later, "", Some("nowhere")).unwrap_err();
+        assert!(err.contains("the tag was created, but pushing it failed"), "{err}");
+        assert_eq!(tag_commit(&repo, "v-kept").expect("tag stays"), later);
     }
 
     #[test]
