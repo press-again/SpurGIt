@@ -1,0 +1,60 @@
+{
+  "format": "spur.icon",
+  "version": 1,
+  "name": "Dot Tree",
+  "grid": { "cols": 7, "rows": 7, "spacing": 1.0 },
+  "dots": [
+    { "id": "c3r0", "x": 0.5, "y": 0.071429, "r": 0.075, "role": "accent" },
+    { "id": "c2r1", "x": 0.357143, "y": 0.214286, "r": 0.075, "role": "accent" },
+    { "id": "c3r1", "x": 0.5, "y": 0.214286, "r": 0.075, "role": "accent" },
+    { "id": "c4r1", "x": 0.642857, "y": 0.214286, "r": 0.075, "role": "accent" },
+    { "id": "c1r2", "x": 0.214286, "y": 0.357143, "r": 0.075, "role": "accent" },
+    { "id": "c2r2", "x": 0.357143, "y": 0.357143, "r": 0.075, "role": "accent" },
+    { "id": "c3r2", "x": 0.5, "y": 0.357143, "r": 0.075, "role": "accent" },
+    { "id": "c4r2", "x": 0.642857, "y": 0.357143, "r": 0.075, "role": "accent" },
+    { "id": "c5r2", "x": 0.785714, "y": 0.357143, "r": 0.075, "role": "accent" },
+    { "id": "c0r3", "x": 0.071429, "y": 0.5, "r": 0.075, "role": "accent" },
+    { "id": "c1r3", "x": 0.214286, "y": 0.5, "r": 0.075, "role": "accent" },
+    { "id": "c2r3", "x": 0.357143, "y": 0.5, "r": 0.075, "role": "accent" },
+    { "id": "c3r3", "x": 0.5, "y": 0.5, "r": 0.075, "role": "accent" },
+    { "id": "c4r3", "x": 0.642857, "y": 0.5, "r": 0.075, "role": "accent" },
+    { "id": "c5r3", "x": 0.785714, "y": 0.5, "r": 0.075, "role": "accent" },
+    { "id": "c6r3", "x": 0.928571, "y": 0.5, "r": 0.075, "role": "accent" },
+    { "id": "c3r4", "x": 0.5, "y": 0.642857, "r": 0.075, "role": "muted" },
+    { "id": "c2r5", "x": 0.357143, "y": 0.785714, "r": 0.075, "role": "muted" },
+    { "id": "c3r5", "x": 0.5, "y": 0.785714, "r": 0.075, "role": "muted" },
+    { "id": "c4r5", "x": 0.642857, "y": 0.785714, "r": 0.075, "role": "muted" },
+    { "id": "c3r6", "x": 0.5, "y": 0.928571, "r": 0.075, "role": "muted" }
+  ],
+  "states": [
+    { "name": "rest", "values": [] },
+    {
+      "name": "dim",
+      "values": [
+        { "id": "c0r3", "opacity": 0.2 },
+        { "id": "c1r3", "opacity": 0.2 },
+        { "id": "c5r3", "opacity": 0.2 },
+        { "id": "c6r3", "opacity": 0.2 }
+      ]
+    }
+  ],
+  "animations": [
+    {
+      "name": "breathe",
+      "duration_ms": 2600,
+      "looping": true,
+      "effects": [
+        { "kind": "pulse", "intensity": 0.55, "phase_offset": 0.0, "stagger": 0.09, "easing": "sine" }
+      ]
+    },
+    {
+      "name": "sweep",
+      "duration_ms": 1800,
+      "looping": true,
+      "effects": [
+        { "kind": "sweep", "direction_deg": 90, "width": 0.35, "intensity": 0.8, "easing": "sine" }
+      ]
+    }
+  ],
+  "transition": { "duration_ms": 260, "easing": "ease_in_out" }
+}

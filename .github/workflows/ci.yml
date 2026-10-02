@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: test
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build --release
+      # The fonts' OFL and the MIT notices must travel with the binary.
+      - run: >
+          Compress-Archive -DestinationPath spurgit-${{ github.ref_name }}-windows-x64.zip
+          -Path target/release/spurgit.exe, LICENSE,
+          assets/fonts/THIRD_PARTY_NOTICES.md, assets/fonts/Geist-OFL.txt
+      - run: gh release create ${{ github.ref_name }} spurgit-${{ github.ref_name }}-windows-x64.zip --generate-notes
+        env:
+          GH_TOKEN: ${{ github.token }}

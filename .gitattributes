@@ -1,0 +1,4 @@
+# Text files are stored with LF in the repository and checked out with the
+# platform's line endings (core.autocrlf decides locally). Binary files (PNG,
+# ICO, fonts) are detected automatically and left untouched.
+* text=auto
