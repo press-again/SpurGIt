@@ -81,7 +81,19 @@ cargo build --release
 The executable is `target\release\spurgit.exe`.
 
 On macOS you need the stable Rust toolchain and the Xcode Command Line Tools
-(`xcode-select --install`); `cargo build --release` produces `target/release/spurgit`.
+(`xcode-select --install`). `packaging/macos/bundle.sh` builds `target/release/Spur.app` (ad-hoc
+signed, with its icon) and a zip of it; `cargo build --release` alone gives the bare
+`target/release/spurgit`.
+
+The released app is not notarized. After unzipping it into `/Applications`, open it once with
+right-click > Open, or clear the download quarantine flag:
+
+```sh
+xattr -dr com.apple.quarantine /Applications/Spur.app
+```
+
+Started from Finder or the Dock, Spur looks for Git in Homebrew's directories as well as the
+system ones, and opens the folder picker on first run instead of scanning anything.
 
 ## Usage
 

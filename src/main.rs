@@ -64,7 +64,25 @@ fn startup_diagnostics() {
     }
 }
 
+/// Apps started from Finder get a minimal PATH without Homebrew, so the
+/// user's own `git` would be missed. Prepend Homebrew's directories when they
+/// are not already on the PATH.
+#[cfg(target_os = "macos")]
+fn with_homebrew(path: &str) -> String {
+    let mut dirs: Vec<&str> = ["/opt/homebrew/bin", "/usr/local/bin"]
+        .into_iter()
+        .filter(|dir| !path.split(':').any(|have| have == *dir))
+        .collect();
+    dirs.extend(Some(path).filter(|path| !path.is_empty()));
+    dirs.join(":")
+}
+
 fn main() {
+    #[cfg(target_os = "macos")]
+    // SAFETY: first statement of main; no other thread exists yet.
+    unsafe {
+        std::env::set_var("PATH", with_homebrew(&std::env::var("PATH").unwrap_or_default()));
+    }
     logging::init();
     log!("spur {} (pid {})", env!("CARGO_PKG_VERSION"), std::process::id());
     log!("args: {:?}", std::env::args().collect::<Vec<String>>());
@@ -106,4 +124,22 @@ fn main() {
         })
         .detach();
     });
+}
+
+#[cfg(all(test, target_os = "macos"))]
+mod tests {
+    use super::with_homebrew;
+
+    #[test]
+    fn homebrew_dirs_come_first_and_are_never_duplicated() {
+        assert_eq!(
+            with_homebrew("/usr/bin:/bin"),
+            "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
+        );
+        assert_eq!(
+            with_homebrew("/opt/homebrew/bin:/usr/bin"),
+            "/usr/local/bin:/opt/homebrew/bin:/usr/bin"
+        );
+        assert_eq!(with_homebrew(""), "/opt/homebrew/bin:/usr/local/bin");
+    }
 }

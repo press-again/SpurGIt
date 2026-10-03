@@ -663,7 +663,10 @@ pub struct SpurShell {
 
 impl SpurShell {
     pub fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
-        let desktop = std::env::args().any(|a| a == "--desktop");
+        // Started from Finder or the Dock the working directory is `/`, which
+        // is never a folder to scan: behave like `--desktop`.
+        let desktop = std::env::args().any(|a| a == "--desktop")
+            || std::env::current_dir().is_ok_and(|dir| dir == std::path::Path::new("/"));
         let (settings, settings_diagnostics) = crate::settings::load();
         for diagnostic in settings_diagnostics {
             log!("settings: {diagnostic}");
