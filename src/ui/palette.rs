@@ -179,7 +179,7 @@ impl SpurShell {
         if q.is_empty() || matches_query(&q, t().manage_roots) {
             items.push(PaletteItem::ManageRoots);
         }
-        if q.is_empty() || matches_query(&q, t().open_in_file_explorer) {
+        if q.is_empty() || matches_query(&q, &crate::i18n::file_manager(t().open_in_file_explorer)) {
             items.push(PaletteItem::OpenInExplorer);
         }
         if q.is_empty() || matches_query(&q, t().refresh_workspace()) {
@@ -683,7 +683,7 @@ impl SpurShell {
                                 cx,
                             )),
                         )
-                        .child(div().flex_1().min_w_0().child(t().open_in_file_explorer))
+                        .child(div().flex_1().min_w_0().child(crate::i18n::file_manager(t().open_in_file_explorer)))
                         .child(
                             div()
                                 .flex_none()

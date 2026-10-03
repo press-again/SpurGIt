@@ -278,7 +278,7 @@ pub fn to_root_string(raw: &str) -> Result<String, String> {
 /// non-WSL repositories: they run through native Windows Git
 /// ([`to_windows_path`]) and display their Windows path in the UI.
 pub fn is_wsl_worktree(path: &str) -> bool {
-    to_windows_path(path).is_none()
+    cfg!(windows) && to_windows_path(path).is_none()
 }
 
 /// Map a `/mnt/<drive>/…` Linux path back to its Windows path, so
@@ -300,6 +300,16 @@ pub fn to_windows_path(path: &str) -> Option<String> {
     } else {
         format!("{drive}:\\{}", tail.replace('/', "\\"))
     })
+}
+
+/// Path to hand to `std::fs` for a worktree path: the Windows spelling of a
+/// `/mnt/<drive>` mount on Windows, the path itself everywhere else.
+pub fn host_path(path: &str) -> Option<String> {
+    if cfg!(windows) {
+        to_windows_path(path)
+    } else {
+        Some(path.to_string())
+    }
 }
 
 /// Reverse of [`to_windows_path`]: a Windows drive path as its WSL mount.
@@ -499,6 +509,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(windows)]
     fn wsl_worktrees_are_everything_but_windows_mounts() {
         assert!(is_wsl_worktree("/home/me/dev"));
         assert!(is_wsl_worktree("/srv/git/app"));

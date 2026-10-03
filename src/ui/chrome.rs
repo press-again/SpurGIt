@@ -8,7 +8,7 @@ use gpui_kit::component::button::{Button, ButtonVariants as _};
 use gpui_kit::component::spinner::Spinner;
 use gpui_kit::component::{ActiveTheme, Disableable as _, Icon, Sizable as _};
 use gpui_kit::{
-    rgb, Hsla, InteractiveElement as _, IntoElement, StatefulInteractiveElement as _,
+    rgb, Hsla, InteractiveElement as _, IntoElement, MouseButton, StatefulInteractiveElement as _,
     Window, WindowControlArea,
 };
 
@@ -105,34 +105,49 @@ impl SpurShell {
             }
         };
 
+        // The macOS traffic lights are drawn over the bar's left edge.
+        let left_pad = if cfg!(target_os = "macos") { 80. } else { 12. };
+        // Only Windows answers the drag control area itself; elsewhere the
+        // identity needs explicit window-move handlers.
+        #[allow(unused_mut)] // only the non-Windows handlers below mutate it
+        let mut identity = div()
+            .flex_none()
+            .flex()
+            .items_center()
+            .h_full()
+            .gap(px(6.))
+            .pr(px(8.))
+            .window_control_area(WindowControlArea::Drag)
+            .child(brand::branchling(16., self.brand_face(), violet(cx), window))
+            .child(brand::wordmark(12., text_primary(cx)));
+        #[cfg(not(target_os = "windows"))]
+        {
+            identity = identity.on_mouse_down(MouseButton::Left, |event, window, _| {
+                if event.click_count == 2 {
+                    window.titlebar_double_click();
+                } else {
+                    window.start_window_move();
+                }
+            });
+        }
+
         div()
             .flex()
             .items_center()
             .h(px(TITLEBAR_H))
-            .pl(px(12.))
+            .pl(px(left_pad))
             .gap(px(4.))
             .bg(cx.theme().background)
             .border_b_1()
             .border_color(hairline(0.05))
-            .child(
-                // The identity is part of the drag surface: the branchling, 16
-                // logical px (the component picks the 16/20/24 pixel map for
-                // the monitor's scale factor), then the outlined wordmark.
-                div()
-                    .flex_none()
-                    .flex()
-                    .items_center()
-                    .h_full()
-                    .gap(px(6.))
-                    .pr(px(8.))
-                    .window_control_area(WindowControlArea::Drag)
-                    .child(brand::branchling(16., self.brand_face(), violet(cx), window))
-                    .child(brand::wordmark(12., text_primary(cx))),
-            )
+            // The identity is part of the drag surface: the branchling, 16
+            // logical px (the component picks the 16/20/24 pixel map for the
+            // monitor's scale factor), then the outlined wordmark.
+            .child(identity)
             .child(icon_button_element(
                 "settings",
                 app_icon::render(IconSlot::Settings, text_muted(cx), cx),
-                t().tooltip_settings,
+                crate::i18n::native_keys(t().tooltip_settings),
                 cx.listener(|this, _, window, cx| this.toggle_settings(window, cx)),
             ))
             .child(self.render_tabs(cx))
@@ -208,7 +223,7 @@ impl SpurShell {
                 div()
                     .text_size(px(TEXT_MD))
                     .text_color(text_muted(cx))
-                    .child(t().press_ctrl_k),
+                    .child(crate::i18n::native_keys(t().press_ctrl_k)),
             )
             .child(
                 div().pt(px(6.)).child(
@@ -264,6 +279,10 @@ fn count_label(count: u32, glyph: &str) -> gpui_kit::AnyElement {
 /// Snap Layouts and the close action. Other platforms (not shipped) get
 /// explicit handlers so the code stays portable.
 fn caption_controls(window: &Window, cx: &Context<SpurShell>) -> Vec<gpui_kit::AnyElement> {
+    // macOS keeps its native traffic lights.
+    if cfg!(target_os = "macos") {
+        return Vec::new();
+    }
     let max_icon = if window.is_maximized() {
         IconName::WindowRestore
     } else {

@@ -403,7 +403,7 @@ pub struct Strings {
 
 impl Strings {
     pub fn path_input_placeholder(&self) -> &'static str {
-        "Linux or Windows path…"
+        if cfg!(windows) { "Linux or Windows path…" } else { "Folder path…" }
     }
 
     pub fn select_roots_prompt(&self) -> &'static str {
@@ -980,7 +980,11 @@ impl Strings {
 
     /// Refusal when the captured press has neither Ctrl nor Alt (nor F-key).
     pub fn keymap_needs_modifier(&self) -> String {
-        "Add Ctrl or Alt — plain keys would hijack typing".to_string()
+        if cfg!(target_os = "macos") {
+            "Add Cmd, Ctrl or Alt — plain keys would hijack typing".to_string()
+        } else {
+            "Add Ctrl or Alt — plain keys would hijack typing".to_string()
+        }
     }
 
     /// Collision message naming the current owner of the captured keys.
@@ -1120,6 +1124,15 @@ impl Strings {
         } else {
             format!("{n} stashes")
         }
+    }
+
+    /// Roots hint; WSL and Windows paths only exist on Windows.
+    pub fn roots_hint_native(&self) -> &'static str {
+        if cfg!(windows) { self.roots_hint } else { "Repositories are discovered under these paths" }
+    }
+
+    pub fn tooltip_browse_native(&self) -> &'static str {
+        if cfg!(windows) { self.tooltip_browse } else { "Pick folders with the system dialog" }
     }
 
     pub fn explorer_root_meta(&self, path: &str) -> String {
@@ -1680,6 +1693,25 @@ pub static ENGLISH: Strings = Strings {
 };
 
 /// Current language. Extend with e.g. `if locale == "de" { &GERMAN }`.
+/// "File Explorer" is "Finder" on macOS.
+pub fn file_manager(text: &str) -> String {
+    if cfg!(target_os = "macos") {
+        text.replace("File Explorer", "Finder")
+    } else {
+        text.to_string()
+    }
+}
+
+/// Shortcut hints in the strings are written for Windows ("Ctrl K"); macOS
+/// shows its Cmd symbol instead.
+pub fn native_keys(text: &str) -> String {
+    if cfg!(target_os = "macos") {
+        text.replace("Ctrl", "⌘")
+    } else {
+        text.to_string()
+    }
+}
+
 pub fn t() -> &'static Strings {
     &ENGLISH
 }

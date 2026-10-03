@@ -2,3 +2,5 @@
 *.png
 !assets/brand/readme-*.png
 !assets/screenshot.png
+CLAUDE.md
+/.claude

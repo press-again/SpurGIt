@@ -11,7 +11,10 @@ permissions:
 
 jobs:
   test:
-    runs-on: windows-latest
+    strategy:
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -35,5 +38,21 @@ jobs:
           -Path target/release/spurgit.exe, LICENSE,
           assets/fonts/THIRD_PARTY_NOTICES.md, assets/fonts/Geist-OFL.txt
       - run: gh release create ${{ github.ref_name }} spurgit-${{ github.ref_name }}-windows-x64.zip --generate-notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+  release-macos:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [test, release]
+    runs-on: macos-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      # Builds, ad-hoc signs and zips Spur.app (the Windows job made the release).
+      - run: packaging/macos/bundle.sh spurgit-${{ github.ref_name }}-macos-arm64.zip
+      - run: gh release upload ${{ github.ref_name }} spurgit-${{ github.ref_name }}-macos-arm64.zip
         env:
           GH_TOKEN: ${{ github.token }}

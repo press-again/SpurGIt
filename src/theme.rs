@@ -2,8 +2,8 @@
 //!
 //! The built-in themes live in `themes/spur.json` and are compiled in (no
 //! runtime path dependency); the first one ("Spur Dark") is the default.
-//! User themes are JSON files under `%APPDATA%\SpurGit\themes\` (or
-//! `~/.config/spurgit/themes` elsewhere); the selected theme name persists in
+//! User themes are JSON files under `%APPDATA%\SpurGit\themes\` (`~/Library/Application Support/SpurGit/themes`
+//! on macOS, `~/.config/spurgit/themes` elsewhere); the selected theme name persists in
 //! the app settings store ([`crate::settings`]) next to them.
 //!
 //! Editing works on a full [`ThemeConfig`] draft: every exposed [`Token`] maps

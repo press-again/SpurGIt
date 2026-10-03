@@ -1137,7 +1137,7 @@ printf 'space\n' > 'with space.txt'
 printf 'tab\n' > "$(printf 'tab\tname')"
 printf 'nl\n' > "$(printf 'new\nline.txt')"
 printf 'uni\n' > 'ünïcode-fïle.txt'
-printf 'bad\n' > "$(printf 'bad\377name')"
+printf 'bad\n' > "$(printf 'bad\377name')" || true  # APFS rejects non-UTF-8 names
 "#
             ),
         );
@@ -1190,8 +1190,10 @@ printf 'bad\n' > "$(printf 'bad\377name')"
             b"tab\tname".to_vec(),
             b"new\nline.txt".to_vec(),
             "ünïcode-fïle.txt".as_bytes().to_vec(),
-            b"bad\xffname".to_vec(),
         ];
+        if cfg!(not(target_os = "macos")) {
+            expected.push(b"bad\xffname".to_vec());
+        }
         expected.sort();
         assert_eq!(got, expected);
 

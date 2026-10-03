@@ -2370,7 +2370,7 @@ fn change_file_row(
 
             let mut menu = menu
                 .item(context_menu_item(
-                    t().context_reveal.into(),
+                    crate::i18n::file_manager(t().context_reveal),
                     IconName::FolderOpen,
                     move |_, _, cx| {
                         reveal_entity

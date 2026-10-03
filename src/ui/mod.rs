@@ -148,6 +148,34 @@ fn resolve_launch_inputs(desktop: bool, saved_roots: Vec<String>) -> crate::disc
     })
 }
 
+/// The platform file manager, opening a folder or (`select`) showing a file
+/// selected in its folder.
+fn file_manager_command(target: &str, select: bool) -> std::process::Command {
+    use std::process::Command;
+    if cfg!(windows) {
+        let mut c = Command::new("explorer.exe");
+        c.arg(if select { format!("/select,{target}") } else { target.to_string() });
+        c
+    } else if cfg!(target_os = "macos") {
+        let mut c = Command::new("open");
+        if select {
+            c.arg("-R");
+        }
+        c.arg(target);
+        c
+    } else {
+        // xdg-open cannot select a file, so open its folder instead.
+        let dir = std::path::Path::new(target)
+            .parent()
+            .and_then(|parent| parent.to_str())
+            .filter(|_| select)
+            .unwrap_or(target);
+        let mut c = Command::new("xdg-open");
+        c.arg(dir);
+        c
+    }
+}
+
 pub fn window_options(width: f32, height: f32) -> WindowOptions {
     let bounds = Bounds {
         origin: point(px(80.), px(60.)),
@@ -162,7 +190,8 @@ pub fn window_options(width: f32, height: f32) -> WindowOptions {
             // platform keeps the resize frame and answers the control-area
             // hit tests (drag, snap layouts, double-click zoom) natively.
             appears_transparent: true,
-            traffic_light_position: None,
+            // macOS keeps its native traffic lights; centered in the 38px bar.
+            traffic_light_position: Some(point(px(14.), px(12.))),
         }),
         window_bounds: Some(if maximized {
             WindowBounds::Maximized(bounds)
@@ -634,7 +663,10 @@ pub struct SpurShell {
 
 impl SpurShell {
     pub fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
-        let desktop = std::env::args().any(|a| a == "--desktop");
+        // Started from Finder or the Dock the working directory is `/`, which
+        // is never a folder to scan: behave like `--desktop`.
+        let desktop = std::env::args().any(|a| a == "--desktop")
+            || std::env::current_dir().is_ok_and(|dir| dir == std::path::Path::new("/"));
         let (settings, settings_diagnostics) = crate::settings::load();
         for diagnostic in settings_diagnostics {
             log!("settings: {diagnostic}");
@@ -1213,10 +1245,10 @@ impl SpurShell {
             .map(|row| row.path.to_string_lossy().into_owned())
     }
 
-    /// Reveal a path in the native file manager. Linux paths map to
-    /// `\\wsl.localhost\<distro>\…` so Windows Explorer can open them.
+    /// Reveal a path in the native file manager. On Windows, Linux paths map to
+    /// `\\wsl.localhost\<distro>\…` so Explorer can open them.
     fn open_in_explorer(&mut self, path: &str, cx: &mut Context<Self>) {        let target = explorer_target(path);
-        match std::process::Command::new("explorer.exe").arg(&target).spawn() {
+        match file_manager_command(&target, false).spawn() {
             Ok(_) => {
                 log!("explorer: {target}");
                 self.ops.push_info(t().log_explorer(&target));
@@ -1229,15 +1261,11 @@ impl SpurShell {
         cx.notify();
     }
 
-    /// Select a file in the Windows file manager (`explorer.exe /select,…`).
-    /// Plain `explorer.exe <file>` would open the file in its default
-    /// application instead of showing it in the folder.
+    /// Select a file in the file manager (`explorer.exe /select,…`, `open -R`).
+    /// Opening the file itself would launch its default application instead.
     fn reveal_in_explorer(&mut self, path: &str, cx: &mut Context<Self>) {
         let target = explorer_target(path);
-        match std::process::Command::new("explorer.exe")
-            .arg(format!("/select,{target}"))
-            .spawn()
-        {
+        match file_manager_command(&target, true).spawn() {
             Ok(_) => {
                 log!("reveal: {target}");
                 self.ops.push_info(t().log_explorer(&target));

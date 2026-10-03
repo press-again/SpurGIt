@@ -1,7 +1,7 @@
 //! Application settings store.
 //!
 //! One JSON file under the platform config directory (`%APPDATA%\SpurGit` on
-//! Windows, `~/.config/spurgit` elsewhere). It holds the selected theme, the
+//! Windows, `~/Library/Application Support/SpurGit` on macOS, `~/.config/spurgit` elsewhere). It holds the selected theme, the
 //! managed scan roots, and any unknown keys — unknown keys are preserved on
 //! save so a setting written by another version is not destroyed.
 //!
@@ -213,7 +213,8 @@ impl ExternalClient {
 }
 
 /// Platform config directory for SpurGit (`%APPDATA%\SpurGit` on Windows,
-/// `~/.config/spurgit` elsewhere).
+/// `~/Library/Application Support/SpurGit` on macOS, `~/.config/spurgit`
+/// elsewhere).
 pub fn data_dir() -> PathBuf {
     if let Some(appdata) = std::env::var_os("APPDATA") {
         return PathBuf::from(appdata).join("SpurGit");
@@ -221,6 +222,9 @@ pub fn data_dir() -> PathBuf {
     let home = std::env::var_os("HOME")
         .map(PathBuf::from)
         .unwrap_or_default();
+    if cfg!(target_os = "macos") {
+        return home.join("Library").join("Application Support").join("SpurGit");
+    }
     home.join(".config").join("spurgit")
 }
 
@@ -1102,7 +1106,7 @@ mod tests {
 /// The configured external handoff must be WSL-aware: a Windows client cannot
 /// open a raw Linux path. Ignored by default; run with
 /// `cargo test -- --ignored`.
-#[cfg(test)]
+#[cfg(all(test, windows))]
 mod wsl_tests {
     use super::*;
     use crate::process::wsl_support as wsl;

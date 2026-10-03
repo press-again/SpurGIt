@@ -127,7 +127,7 @@ impl SpurShell {
                                 .overflow_hidden()
                                 .child(root.clone()),
                         )
-                        .child(chip(kind_label, kind_color))
+                        .children(cfg!(windows).then(|| chip(kind_label, kind_color)))
                         .child(
                             div()
                                 .id(("root-open", ix))
@@ -232,7 +232,7 @@ impl SpurShell {
                     .pt(px(8.))
                     .text_size(px(11.5))
                     .text_color(text_muted(cx))
-                    .child(t().roots_hint),
+                    .child(t().roots_hint_native()),
             )
             .child(
                 div()
@@ -282,7 +282,7 @@ impl SpurShell {
                             .small()
                             .ghost()
                             .cursor_pointer()
-                            .tooltip(t().tooltip_browse)
+                            .tooltip(t().tooltip_browse_native())
                             .on_click(cx.listener(|this, _, _, cx| this.browse_for_root(cx))),
                     )
                     .child(

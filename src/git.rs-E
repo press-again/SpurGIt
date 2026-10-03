@@ -601,7 +601,7 @@ pub fn operation_markers(worktree: &str) -> Result<Vec<String>, String> {
     if paths.len() != NAMES.len() {
         return Err("git rev-parse did not report every marker path".to_string());
     }
-    if crate::model::host_path(worktree).is_some() {
+    if crate::model::to_windows_path(worktree).is_some() {
         // Native Windows Git reports Windows paths; test them directly.
         return Ok(NAMES
             .iter()
@@ -1378,8 +1378,8 @@ pub fn delete_untracked_paths(worktree: &str, paths: &[Vec<u8>]) -> Result<(), S
     for path in paths {
         let relative = String::from_utf8_lossy(path);
         let joined = format!("{}/{}", worktree.trim_end_matches('/'), relative);
-        if crate::model::host_path(worktree).is_some() {
-            let windows = crate::model::host_path(&joined)
+        if crate::model::to_windows_path(worktree).is_some() {
+            let windows = crate::model::to_windows_path(&joined)
                 .ok_or_else(|| format!("path is not representable on this host: {relative}"))?;
             match std::fs::remove_file(&windows) {
                 Ok(()) => {}
@@ -1997,7 +1997,7 @@ pub fn restore_untracked_file(
 fn worktree_file_missing(worktree: &str, path: &[u8]) -> bool {
     let relative = String::from_utf8_lossy(path);
     let joined = format!("{}/{}", worktree.trim_end_matches('/'), relative);
-    if let Some(windows) = crate::model::host_path(&joined) {
+    if let Some(windows) = crate::model::to_windows_path(&joined) {
         return !std::path::Path::new(&windows).exists();
     }
     if std::str::from_utf8(path).is_err() {
@@ -3503,8 +3503,8 @@ fn read_worktree_file(worktree: &str, path: &[u8], max: usize) -> Result<Vec<u8>
     use std::io::Read as _;
     let relative = String::from_utf8_lossy(path);
     let joined = format!("{}/{}", worktree.trim_end_matches('/'), relative);
-    if crate::model::host_path(worktree).is_some() {
-        let windows = crate::model::host_path(&joined)
+    if crate::model::to_windows_path(worktree).is_some() {
+        let windows = crate::model::to_windows_path(&joined)
             .ok_or_else(|| format!("path is not representable on this host: {relative}"))?;
         let file = std::fs::File::open(&windows).map_err(|e| e.to_string())?;
         let mut data = Vec::new();
@@ -3724,7 +3724,7 @@ pub fn conflict_sections(worktree: &str, path: &[u8]) -> Result<Vec<ConflictSect
 pub(crate) fn write_worktree_file(worktree: &str, path: &[u8], bytes: Vec<u8>) -> Result<(), String> {
     let relative = String::from_utf8_lossy(path);
     let joined = format!("{}/{}", worktree.trim_end_matches('/'), relative);
-    if let Some(windows) = crate::model::host_path(&joined) {
+    if let Some(windows) = crate::model::to_windows_path(&joined) {
         return std::fs::write(&windows, bytes).map_err(|e| e.to_string());
     }
     if std::str::from_utf8(path).is_err() {
@@ -5425,28 +5425,26 @@ printf 'one\n' > normal.txt
 printf 'dash\n' > -n
 printf 'spaced\n' > 'sp ace.txt'
 printf 'glob\n' > ':(glob)*'
-printf 'weird\n' > "$(printf 'bad\xffname')" || true  # APFS rejects non-UTF-8 names
+printf 'weird\n' > "$(printf 'bad\xffname')"
 git add -A
 git commit -q -m base
 printf 'two\n' >> normal.txt
 printf 'changed\n' >> '*.txt'
 printf 'new\n' > 'new file.txt'
 printf 'glob-change\n' >> ':(glob)*'
-printf 'weird-change\n' >> "$(printf 'bad\xffname')" || true
+printf 'weird-change\n' >> "$(printf 'bad\xffname')"
 "#
             ),
         );
         wsl::must(&[&script]);
 
-        let mut targets: Vec<Vec<u8>> = vec![
+        let non_utf8 = b"bad\xffname".to_vec();
+        let targets: Vec<Vec<u8>> = vec![
             b"*.txt".to_vec(),
             b"new file.txt".to_vec(),
             b":(glob)*".to_vec(),
+            non_utf8.clone(),
         ];
-        // APFS cannot hold a non-UTF-8 file name.
-        if cfg!(not(target_os = "macos")) {
-            targets.push(b"bad\xffname".to_vec());
-        }
         stage_paths(&repo, &targets).expect("stage must succeed");
 
         let staged = staged_names(&repo);
@@ -6994,7 +6992,6 @@ git -C "{repo}" commit -qam two
 
     #[test]
     #[ignore = "requires a WSL distro"]
-    #[cfg(windows)]
     fn wsl_created_worktree_on_a_windows_drive_falls_back_to_wsl_git() {
         wsl::watchdog(120);
         let base = std::env::temp_dir().join(format!("spur-wt-fallback-{}", std::process::id()));

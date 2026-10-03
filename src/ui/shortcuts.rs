@@ -192,6 +192,33 @@ pub(super) fn def(action: &str) -> Option<&'static ShortcutDef> {
     SHORTCUTS.iter().find(|def| def.action == action)
 }
 
+/// macOS default for a table keystroke: Cmd replaces Ctrl as the primary
+/// modifier. Ctrl+Tab stays, the system convention for switching tabs.
+fn mac_key(key: &str) -> String {
+    match key.strip_prefix("ctrl-") {
+        Some(rest) if !rest.ends_with("tab") => format!("cmd-{rest}"),
+        _ => key.to_string(),
+    }
+}
+
+/// Compiled default keystrokes of one action on this platform.
+fn default_keys(entry: &ShortcutDef) -> Vec<String> {
+    entry
+        .keys
+        .iter()
+        .map(|key| if cfg!(target_os = "macos") { mac_key(key) } else { key.to_string() })
+        .collect()
+}
+
+/// Curated display of those defaults.
+fn default_display(entry: &ShortcutDef) -> String {
+    if cfg!(target_os = "macos") && !entry.display.ends_with("Tab") {
+        entry.display.replace("Ctrl", "⌘")
+    } else {
+        entry.display.to_string()
+    }
+}
+
 /// One action's effective keystrokes after `keymap.json` overrides.
 #[derive(Clone, Debug)]
 pub struct EffectiveBinding {
@@ -206,9 +233,8 @@ pub fn display_for(action: &str, keys: &[String]) -> String {
         return t().keymap_unbound.to_string();
     }
     if let Some(def) = def(action) {
-        let defaults: Vec<String> = def.keys.iter().map(|key| key.to_string()).collect();
-        if *keys == defaults {
-            return def.display.to_string();
+        if *keys == default_keys(def) {
+            return default_display(def);
         }
     }
     keys.iter().map(|key| prettify(key)).collect::<Vec<_>>().join(", ")
@@ -227,6 +253,7 @@ pub fn prettify(keystroke: &str) -> String {
                 .split('-')
                 .map(|part| match part {
                     "ctrl" => "Ctrl".to_string(),
+                    "cmd" => "⌘".to_string(),
                     "shift" => "Shift".to_string(),
                     "alt" => "Alt".to_string(),
                     part => {
@@ -374,7 +401,7 @@ fn merge(
     let mut taken: HashMap<String, String> = HashMap::new();
     let mut bindings = Vec::new();
     for entry in SHORTCUTS {
-        let defaults: Vec<String> = entry.keys.iter().map(|key| key.to_string()).collect();
+        let defaults = default_keys(entry);
         let wanted = overrides.get(entry.action).unwrap_or(&defaults).clone();
         if wanted != defaults {
             customized += 1;
@@ -415,7 +442,7 @@ fn load_from(text: Option<&str>) -> (Vec<EffectiveBinding>, Vec<String>, usize) 
                 .iter()
                 .map(|entry| EffectiveBinding {
                     action: entry.action.to_string(),
-                    keys: entry.keys.iter().map(|key| key.to_string()).collect(),
+                    keys: default_keys(entry),
                 })
                 .collect(),
             Vec::new(),
@@ -461,9 +488,7 @@ pub fn customized(cx: &App) -> usize {
 /// Settings row earns its Reset button).
 pub fn is_customized(action: &str, keys: &[String]) -> bool {
     match def(action) {
-        Some(entry) => {
-            entry.keys.iter().map(|key| key.to_string()).collect::<Vec<_>>() != keys
-        }
+        Some(entry) => default_keys(entry) != keys,
         None => false,
     }
 }
@@ -559,7 +584,7 @@ pub fn canonical_keystroke(
         parts.push("shift");
     }
     if platform {
-        parts.push("win");
+        parts.push(if cfg!(target_os = "macos") { "cmd" } else { "win" });
     }
     if function {
         parts.push("fn");
@@ -739,7 +764,8 @@ impl SpurShell {
         let bare = key.to_lowercase();
         let fkey =
             bare.len() > 1 && bare.as_bytes()[0] == b'f' && bare[1..].parse::<u32>().is_ok();
-        if !(modifiers.control || modifiers.alt || fkey) {
+        let cmd = cfg!(target_os = "macos") && modifiers.platform;
+        if !(modifiers.control || modifiers.alt || cmd || fkey) {
             self.shortcut_status = Some((t().keymap_needs_modifier(), true));
             cx.notify();
             return;
@@ -988,6 +1014,7 @@ mod tests {
     fn keymap_problems_keep_safe_defaults() {
         // Malformed JSON, unknown actions, bad keystrokes, and collisions
         // all fall back to defaults with a diagnostic each.
+        let palette_key = default_keys(def("toggle-palette").unwrap()).remove(0);
         let (entries, diagnostics) = parse_keymap_file("{oops");
         assert_eq!(entries.len(), 0);
         assert_eq!(diagnostics.len(), 1);
@@ -1011,19 +1038,20 @@ mod tests {
             .iter()
             .find(|binding| binding.action == "toggle-palette")
             .expect("toggle must survive");
-        assert_eq!(toggle.keys, vec!["ctrl-k"]);
+        assert_eq!(toggle.keys, vec![palette_key.clone()]);
 
-        // open-settings onto ctrl-k collides with toggle-palette's default:
+        // open-settings onto the palette key collides with toggle-palette's default:
         // the earlier table entry wins and the loser is reported.
         let (entries, _) = parse_keymap_file(
-            r#"{"bindings": [{"action": "open-settings", "keys": "ctrl-k"}]}"#,
+            &r#"{"bindings": [{"action": "open-settings", "keys": "PALETTE"}]}"#
+                .replace("PALETTE", &palette_key),
         );
         let (bindings, diagnostics, _) = merge(entries);
         let toggle = bindings
             .iter()
             .find(|binding| binding.action == "toggle-palette")
             .expect("toggle must survive");
-        assert_eq!(toggle.keys, vec!["ctrl-k"]);
+        assert_eq!(toggle.keys, vec![palette_key.clone()]);
         let settings = bindings
             .iter()
             .find(|binding| binding.action == "open-settings")
@@ -1046,6 +1074,25 @@ mod tests {
     }
 
     #[test]
+    fn mac_defaults_swap_ctrl_for_cmd_except_tab_switching() {
+        assert_eq!(mac_key("ctrl-k"), "cmd-k");
+        assert_eq!(mac_key("ctrl-,"), "cmd-,");
+        assert_eq!(mac_key("ctrl-alt-z"), "cmd-alt-z");
+        assert_eq!(mac_key("ctrl-shift-l"), "cmd-shift-l");
+        assert_eq!(mac_key("ctrl-tab"), "ctrl-tab");
+        assert_eq!(mac_key("ctrl-shift-tab"), "ctrl-shift-tab");
+        assert_eq!(mac_key("shift-/"), "shift-/");
+        assert_eq!(mac_key("escape"), "escape");
+        assert_eq!(prettify("cmd-shift-l"), "⌘ Shift L");
+        // Every mapped default still parses as a keystroke.
+        for entry in SHORTCUTS {
+            for key in entry.keys {
+                assert!(Keystroke::parse(&mac_key(key)).is_ok(), "{key}");
+            }
+        }
+    }
+
+    #[test]
     fn canonical_keystroke_round_trips_through_parse() {
         // A captured chord rebuilds the canonical string, which parses back
         // to the same modifiers and key.
@@ -1054,7 +1101,10 @@ mod tests {
             ((true, false, true, false, false, "Tab"), "ctrl-shift-tab"),
             ((false, false, true, false, false, "/"), "shift-/"),
             ((false, true, false, false, false, ","), "alt-,"),
-            ((false, false, false, true, false, "p"), "win-p"),
+            (
+                (false, false, false, true, false, "p"),
+                if cfg!(target_os = "macos") { "cmd-p" } else { "win-p" },
+            ),
             ((false, false, false, false, false, "f5"), "f5"),
             ((true, false, false, false, false, "F12"), "ctrl-f12"),
         ];
