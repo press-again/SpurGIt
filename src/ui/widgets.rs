@@ -605,7 +605,7 @@ pub(super) fn wash_icon_button(
 pub(super) fn icon_button_element(
     id: &'static str,
     icon: impl IntoElement + 'static,
-    tooltip: &'static str,
+    tooltip: impl Into<gpui_kit::SharedString>,
     on_click: impl Fn(&gpui_kit::ClickEvent, &mut Window, &mut App) + 'static,
 ) -> impl IntoElement {
     Button::new(id)

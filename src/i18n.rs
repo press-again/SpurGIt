@@ -980,7 +980,11 @@ impl Strings {
 
     /// Refusal when the captured press has neither Ctrl nor Alt (nor F-key).
     pub fn keymap_needs_modifier(&self) -> String {
-        "Add Ctrl or Alt — plain keys would hijack typing".to_string()
+        if cfg!(target_os = "macos") {
+            "Add Cmd, Ctrl or Alt — plain keys would hijack typing".to_string()
+        } else {
+            "Add Ctrl or Alt — plain keys would hijack typing".to_string()
+        }
     }
 
     /// Collision message naming the current owner of the captured keys.
@@ -1680,6 +1684,16 @@ pub static ENGLISH: Strings = Strings {
 };
 
 /// Current language. Extend with e.g. `if locale == "de" { &GERMAN }`.
+/// Shortcut hints in the strings are written for Windows ("Ctrl K"); macOS
+/// shows its Cmd symbol instead.
+pub fn native_keys(text: &str) -> String {
+    if cfg!(target_os = "macos") {
+        text.replace("Ctrl", "⌘")
+    } else {
+        text.to_string()
+    }
+}
+
 pub fn t() -> &'static Strings {
     &ENGLISH
 }

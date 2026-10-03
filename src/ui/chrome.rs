@@ -147,7 +147,7 @@ impl SpurShell {
             .child(icon_button_element(
                 "settings",
                 app_icon::render(IconSlot::Settings, text_muted(cx), cx),
-                t().tooltip_settings,
+                crate::i18n::native_keys(t().tooltip_settings),
                 cx.listener(|this, _, window, cx| this.toggle_settings(window, cx)),
             ))
             .child(self.render_tabs(cx))
@@ -223,7 +223,7 @@ impl SpurShell {
                 div()
                     .text_size(px(TEXT_MD))
                     .text_color(text_muted(cx))
-                    .child(t().press_ctrl_k),
+                    .child(crate::i18n::native_keys(t().press_ctrl_k)),
             )
             .child(
                 div().pt(px(6.)).child(

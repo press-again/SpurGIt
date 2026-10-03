@@ -534,7 +534,7 @@ impl SpurShell {
                     .text()
                     .small()
                     .flex_none()
-                    .tooltip(t().tooltip_open_repo)
+                    .tooltip(crate::i18n::native_keys(t().tooltip_open_repo))
                     .on_click(cx.listener(|this, _, window, cx| this.toggle_palette(window, cx))),
             )
             .child(
