@@ -42,6 +42,12 @@ fn load_fonts(cx: &mut App) {
         .expect("failed to load bundled Geist fonts");
 }
 
+/// The window's root view: the shell inside the kit's overlay root.
+fn build_root(window: &mut gpui_kit::Window, cx: &mut App) -> gpui_kit::Entity<Root> {
+    let view = cx.new(|cx| ui::SpurShell::new(window, cx));
+    cx.new(|cx| Root::new(view, window, cx))
+}
+
 fn startup_diagnostics() {
     match git::git_version() {
         Ok(v) => log!("{v}"),
@@ -100,6 +106,15 @@ fn main() {
     // Full icon catalog: the default `Assets` bundle only embeds a small
     // subset (Search, Close, ...), so use AllAssets for chips and toolbars.
     let app = gpui_kit::application().with_assets(gpui_kit::assets::AllAssets);
+    // macOS keeps the app running after its last window closes; a Dock click
+    // then asks for a window back. Tabs and roots restore from the settings.
+    app.on_reopen(move |cx| {
+        if cx.windows().is_empty()
+            && let Err(err) = cx.open_window(ui::window_options(w, h), build_root)
+        {
+            log!("reopen: could not open a window: {err}");
+        }
+    });
     app.run(move |cx| {
         gpui_kit::init(cx);
         load_fonts(cx);
@@ -116,11 +131,8 @@ fn main() {
         ui::shortcuts::init(cx);
         cx.bind_keys(ui::shortcuts::key_bindings(cx));
         cx.spawn(async move |cx| {
-            cx.open_window(ui::window_options(w, h), |window, cx| {
-                let view = cx.new(|cx| ui::SpurShell::new(window, cx));
-                cx.new(|cx| Root::new(view, window, cx))
-            })
-            .expect("failed to open window");
+            cx.open_window(ui::window_options(w, h), build_root)
+                .expect("failed to open window");
         })
         .detach();
     });
