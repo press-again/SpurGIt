@@ -1102,7 +1102,7 @@ mod tests {
 /// The configured external handoff must be WSL-aware: a Windows client cannot
 /// open a raw Linux path. Ignored by default; run with
 /// `cargo test -- --ignored`.
-#[cfg(test)]
+#[cfg(all(test, windows))]
 mod wsl_tests {
     use super::*;
     use crate::process::wsl_support as wsl;

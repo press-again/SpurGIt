@@ -942,6 +942,7 @@ chmod 000 "$R/root/locked"
     /// file) must still come from Git.
     #[test]
     #[ignore = "requires a WSL distro"]
+    #[cfg(windows)]
     fn native_identity_matches_git_on_a_windows_mount() {
         wsl::watchdog(240);
         let base = std::env::temp_dir().join(format!("spur-native-{}", std::process::id()));

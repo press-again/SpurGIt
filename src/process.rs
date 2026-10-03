@@ -272,6 +272,13 @@ impl Command {
             const CREATE_NO_WINDOW: u32 = 0x0800_0000;
             c.creation_flags(CREATE_NO_WINDOW);
         }
+        #[cfg(unix)]
+        {
+            use std::os::unix::process::CommandExt;
+            // Own process group, so a cancel can kill Git's helpers (ssh,
+            // credential helpers) that would otherwise keep the pipes open.
+            c.process_group(0);
+        }
         c
     }
 }
@@ -669,8 +676,9 @@ fn kill_pid(pid: u32) {
 
 #[cfg(not(windows))]
 fn kill_pid(pid: u32) {
+    // Negative pid = the whole process group created in `std_command`.
     let _ = StdCommand::new("kill")
-        .args(["-9", &pid.to_string()])
+        .args(["-9", "--", &format!("-{pid}")])
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null())
@@ -848,14 +856,24 @@ pub(crate) mod wsl_support {
     use std::time::{Duration, Instant};
 
     /// Fixture commands bypass the application runner on purpose.
-    fn wsl_command(args: &[&str]) -> StdCommand {
-        let mut c = StdCommand::new("wsl.exe");
-        c.args(["-d", crate::git::distro(), "-e"]).args(args);
-        c
+    /// Off Windows the "Linux side" is this machine, so fixtures run directly.
+    pub fn wsl_command(args: &[&str]) -> StdCommand {
+        #[cfg(windows)]
+        {
+            let mut c = StdCommand::new("wsl.exe");
+            c.args(["-d", crate::git::distro(), "-e"]).args(args);
+            c
+        }
+        #[cfg(not(windows))]
+        {
+            let mut c = StdCommand::new(args[0]);
+            c.args(&args[1..]);
+            c
+        }
     }
 
     pub fn wsl(args: &[&str]) -> std::process::Output {
-        wsl_command(args).output().expect("failed to launch wsl.exe")
+        wsl_command(args).output().expect("failed to launch fixture command")
     }
 
     pub fn must(args: &[&str]) -> Vec<u8> {
@@ -871,18 +889,10 @@ pub(crate) mod wsl_support {
 
     /// Run with a disposable HOME and no system Git config.
     pub fn must_env(home: &str, args: &[&str]) -> Vec<u8> {
-        let out = StdCommand::new("wsl.exe")
-            .args([
-                "-d",
-                crate::git::distro(),
-                "-e",
-                "env",
-                &format!("HOME={home}"),
-                "GIT_CONFIG_NOSYSTEM=1",
-            ])
-            .args(args)
-            .output()
-            .expect("failed to launch wsl.exe");
+        let home = format!("HOME={home}");
+        let mut full = vec!["env", home.as_str(), "GIT_CONFIG_NOSYSTEM=1"];
+        full.extend_from_slice(args);
+        let out = wsl(&full);
         assert!(
             out.status.success(),
             "wsl env {:?} failed: {}",
@@ -912,7 +922,9 @@ pub(crate) mod wsl_support {
     }
 
     pub fn temp_dir(tag: &str) -> String {
-        let dir = format!("/tmp/spur-jobs-{tag}-{}", std::process::id());
+        // Git reports real paths, and /tmp is a symlink on macOS.
+        let root = if cfg!(target_os = "macos") { "/private/tmp" } else { "/tmp" };
+        let dir = format!("{root}/spur-jobs-{tag}-{}", std::process::id());
         must(&["rm", "-rf", &dir]);
         must(&["mkdir", "-p", &dir]);
         dir
@@ -1188,11 +1200,18 @@ Counting objects: 100% (4/4), done.\nWriting objects:  20% (1/5)\rWriting object
 mod wsl_tests {
     use super::*;
     use crate::process::wsl_support as wsl;
-    use std::process::{Command as StdCommand, Stdio};
+    use std::process::Stdio;
     use std::time::Duration;
 
     fn wsl_job(args: &[&str]) -> Command {
-        Command::new("wsl.exe").args(["-d", crate::git::distro(), "-e"]).args(args)
+        #[cfg(windows)]
+        {
+            Command::new("wsl.exe").args(["-d", crate::git::distro(), "-e"]).args(args)
+        }
+        #[cfg(not(windows))]
+        {
+            Command::new(args[0]).args(&args[1..])
+        }
     }
 
     #[test]
@@ -1227,8 +1246,7 @@ sleep 600
             &format!("#!/bin/bash\ntouch \"{queued_started}\"\necho queued-ran\n"),
         );
 
-        let sentinel = StdCommand::new("wsl.exe")
-            .args(["-d", crate::git::distro(), "-e", "sleep", "600"])
+        let sentinel = wsl::wsl_command(&["sleep", "600"])
             .stdin(Stdio::null())
             .stdout(Stdio::null())
             .stderr(Stdio::null())

@@ -95,6 +95,9 @@ pub(super) fn violet(cx: &App) -> Hsla {
 /// `X:\…`; Windows paths pass through.
 pub(super) fn explorer_target(path: &str) -> String {
     let p = path.trim();
+    if cfg!(not(windows)) {
+        return p.to_string();
+    }
     if let Some(rest) = p.strip_prefix("/mnt/") {
         let (drive, tail) = match rest.split_once('/') {
             Some((drive, tail)) => (drive, tail),
@@ -719,6 +722,7 @@ mod tests {
     use super::*;
 
     #[test]
+    #[cfg(windows)]
     fn explorer_target_maps_wsl_mounts_and_native_paths() {
         assert_eq!(explorer_target("/mnt/c/Users/me/dev"), r"C:\Users\me\dev");
         assert_eq!(explorer_target("/mnt/d"), r"D:\");

@@ -1,5 +1,5 @@
-//! SpurGit bootstrap (Windows-native): fonts, theme, window, diagnostics.
-//! Git access happens inside WSL via git.rs.
+//! SpurGit bootstrap: fonts, theme, window, diagnostics.
+//! Git access goes through git.rs (WSL or native Git on Windows, local Git elsewhere).
 
 // Release builds are GUI apps: no console window when launched from Explorer
 // (debug builds keep the console for `cargo run` diagnostics; release dev
@@ -47,6 +47,7 @@ fn startup_diagnostics() {
         Ok(v) => log!("{v}"),
         Err(e) => log!("git unavailable: {e}"),
     }
+    #[cfg(windows)]
     log!(
         "wsl: {} (distro {})",
         if git::wsl_available() { "available" } else { "unavailable" },

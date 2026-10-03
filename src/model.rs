@@ -302,6 +302,16 @@ pub fn to_windows_path(path: &str) -> Option<String> {
     })
 }
 
+/// Path to hand to `std::fs` for a worktree path: the Windows spelling of a
+/// `/mnt/<drive>` mount on Windows, the path itself everywhere else.
+pub fn host_path(path: &str) -> Option<String> {
+    if cfg!(windows) {
+        to_windows_path(path)
+    } else {
+        Some(path.to_string())
+    }
+}
+
 /// Reverse of [`to_windows_path`]: a Windows drive path as its WSL mount.
 pub fn to_linux_path(path: &str) -> Option<String> {
     let trimmed = path.trim();

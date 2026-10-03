@@ -59,7 +59,8 @@ repositories use Git for Windows. The UI is a single native Windows executable.
 
 ## Requirements
 
-- Windows 10 or 11
+- Windows 10 or 11, or macOS (experimental). On macOS Spur runs the `git` on your `PATH`
+  (Apple's or Homebrew's) and there is no WSL; paths are plain macOS paths.
 - [Git for Windows](https://git-scm.com/download/win) on `PATH`, for repositories on Windows drives
 - Optional: WSL 2 with a distribution that has `git` installed, for repositories inside WSL
 
@@ -78,6 +79,9 @@ cargo build --release
 ```
 
 The executable is `target\release\spurgit.exe`.
+
+On macOS you need the stable Rust toolchain and the Xcode Command Line Tools
+(`xcode-select --install`); `cargo build --release` produces `target/release/spurgit`.
 
 ## Usage
 
@@ -135,7 +139,8 @@ Shortcuts can be remapped in Settings or in `keymap.json`.
 
 ## Configuration
 
-Settings live in `%APPDATA%\SpurGit\settings.json`. Most of them can be changed in the app. A
+Settings live in `%APPDATA%\SpurGit\settings.json` (`~/.config/spurgit/settings.json` on
+macOS). Most of them can be changed in the app. A
 few can only be set in the file for now:
 
 ```json
