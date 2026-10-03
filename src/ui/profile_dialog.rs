@@ -96,7 +96,8 @@ impl SpurShell {
     }
 
     /// Open the dialog, prefilled when editing, and look up which GitHub
-    /// accounts Git Credential Manager already has.
+    /// accounts Git Credential Manager already has. A new profile is prefilled
+    /// with Git's own `user.name` and `user.email`.
     pub(super) fn request_profile(
         &mut self,
         editing: Option<String>,
@@ -126,13 +127,30 @@ impl SpurShell {
         }
         self.profile_request = Some(ProfileRequest { editing });
         self.open_modal(cx);
-        cx.spawn(async move |this, cx| {
-            let stored = cx
+        let adding = current.is_none();
+        cx.spawn_in(window, async move |this, cx| {
+            let (stored, identity) = cx
                 .background_executor()
-                .spawn(async { accounts::stored_github_accounts() })
+                .spawn(async {
+                    (accounts::stored_github_accounts(), accounts::git_identity())
+                })
                 .await;
-            this.update(cx, |this, cx| {
+            this.update_in(cx, |this, window, cx| {
                 this.stored_accounts = stored;
+                // A new profile starts from Git's own identity, unless the
+                // user already started typing.
+                if adding && this.profile_request.is_some() {
+                    for (input, value) in [
+                        (&this.profile_name_input, identity.0),
+                        (&this.profile_email_input, identity.1),
+                    ] {
+                        if let Some(value) = value
+                            && input.read(cx).value().is_empty()
+                        {
+                            input.update(cx, |state, cx| state.set_value(value, window, cx));
+                        }
+                    }
+                }
                 cx.notify();
             })
             .ok();

@@ -139,8 +139,8 @@ Shortcuts can be remapped in Settings or in `keymap.json`.
 
 ## Configuration
 
-Settings live in `%APPDATA%\SpurGit\settings.json` (`~/.config/spurgit/settings.json` on
-macOS). Most of them can be changed in the app. A
+Settings live in `%APPDATA%\SpurGit\settings.json` (`~/Library/Application Support/SpurGit/settings.json`
+on macOS). Most of them can be changed in the app. A
 few can only be set in the file for now:
 
 ```json

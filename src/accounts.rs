@@ -218,6 +218,25 @@ pub fn config_args(worktree: &str, args: &[&str]) -> Vec<String> {
     config.into_iter().flat_map(|value| ["-c".to_string(), value]).collect()
 }
 
+/// Git's own `user.name` and `user.email` (global and system config), to
+/// prefill a new profile. `None` for a value that is unset or when Git is
+/// missing.
+pub fn git_identity() -> (Option<String>, Option<String>) {
+    let Some(git) = crate::git::windows_git() else {
+        return (None, None);
+    };
+    let get = |key: &str| {
+        crate::process::Command::new(git)
+            .args(["config", "--get", key])
+            .output()
+            .ok()
+            .filter(|out| out.success())
+            .map(|out| out.stdout_text().trim().to_string())
+            .filter(|value| !value.is_empty())
+    };
+    (get("user.name"), get("user.email"))
+}
+
 /// GitHub accounts Git Credential Manager has a login for. Empty when it is
 /// not installed or has none; this only reads account names.
 pub fn stored_github_accounts() -> Vec<String> {
